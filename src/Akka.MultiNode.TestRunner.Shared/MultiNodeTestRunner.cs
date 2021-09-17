@@ -39,6 +39,36 @@ namespace Akka.MultiNode.TestRunner.Shared
     /// </summary>
     public class MultiNodeTestRunner : IDisposable
     {
+        /// <summary>
+        /// Discovers all tests in given assembly
+        /// </summary>
+        public static List<MultiNodeTest> Discover(string assemblyPath)
+        {
+            MultiNodeEnvironment.Initialize();
+            
+            var result = new List<MultiNodeTest>();
+#if CORECLR
+            var assembly = AssemblyLoadContext.Default.LoadFromAssemblyPath(assemblyPath);
+#else
+            var assembly = Assembly.LoadFrom(assemblyPath);
+#endif
+
+            foreach (var type in assembly.GetTypes())
+            {
+                foreach (var method in type.GetMethods())
+                {
+                    var attribute = method.GetCustomAttribute<MultiNodeFactAttribute>();
+                    if(attribute == null)
+                        continue;
+
+                    var discovery = new Discovery(assembly, type.GetTypeInfo(), method, attribute);
+                    result.Add(new MultiNodeTest(discovery, assemblyPath)); 
+                }
+            }
+
+            return result;
+        }
+        
         private readonly string _platformName = PlatformDetector.Current == PlatformDetector.PlatformType.NetCore ? "netcore" : "net";
 
         private string _currentAssembly;
@@ -164,34 +194,12 @@ namespace Akka.MultiNode.TestRunner.Shared
             TestRunSystem?.WhenTerminated.Wait(TimeSpan.FromMinutes(1));
         }
 
-        /// <summary>
-        /// Discovers all tests in given assembly
-        /// </summary>
-        public static (List<MultiNodeTest> Tests, List<ErrorMessage> Errors) DiscoverSpecs(string assemblyPath)
-        {
-            MultiNodeEnvironment.Initialize();
-
-            using (var controller = new XunitFrontController(AppDomainSupport.IfAvailable, assemblyPath))
-            {
-                using (var discovery = new Discovery(assemblyPath))
-                {
-                    controller.Find(false, discovery, TestFrameworkOptions.ForDiscovery());
-                    discovery.Finished.WaitOne();
-                    return (discovery.Tests, discovery.Errors);
-                }
-            }
-        }
-
         private List<MultiNodeTestResult> DiscoverAndRunSpecs(string assemblyPath, MultiNodeTestRunnerOptions options)
         {
             var testResults = new List<MultiNodeTestResult>();
             PublishRunnerMessage($"Running MultiNodeTests for {assemblyPath}");
 
-            var (discoveredTests, errors) = DiscoverSpecs(assemblyPath);
-            if (errors.Any())
-            {
-                ReportDiscoveryErrors(errors);
-            }
+            var discoveredTests = Discover(assemblyPath);
 
             // If port was set random, request the actual port from TcpLoggingServer
             var listenPort = options.ListenPort > 0 
@@ -246,7 +254,7 @@ namespace Akka.MultiNode.TestRunner.Shared
 
             var timelineCollector = TestRunSystem.ActorOf(Props.Create(() => new TimelineLogCollectorActor()));
             //TODO: might need to do some validation here to avoid the 260 character max path error on Windows
-            var folder = Directory.CreateDirectory(Path.Combine(options.OutputDirectory, test.TestName));
+            var folder = Directory.CreateDirectory(Path.GetFullPath(Path.Combine(options.OutputDirectory, test.TestName)));
             var testOutputDir = folder.FullName;
 
             var nodeProcesses = new List<(NodeTest, Process)>();

@@ -7,9 +7,7 @@
 
 using System;
 using System.IO;
-using System.Linq;
 using System.Net;
-using System.Reflection;
 using System.Threading;
 using Akka.Actor;
 using Akka.IO;
@@ -17,8 +15,14 @@ using Akka.MultiNode.Shared.Environment;
 using Akka.MultiNode.Shared.Sinks;
 using Akka.Remote.TestKit;
 using Xunit;
-
+using Xunit.Sdk;
+using IMessageSink = Xunit.Abstractions.IMessageSink;
+using NullMessageSink = Xunit.Sdk.NullMessageSink;
+using TestMethodDisplay = Xunit.Sdk.TestMethodDisplay;
+using TestMethodDisplayOptions = Xunit.Sdk.TestMethodDisplayOptions;
 #if CORECLR
+using System.Linq;
+using System.Reflection;
 using System.Runtime.Loader;
 using Microsoft.Extensions.DependencyModel;
 #endif
@@ -36,14 +40,16 @@ namespace Akka.MultiNode.NodeRunner
 
         static int Main(string[] args)
         {
+            MultiNodeEnvironment.Initialize();
+
             try
             {
                 var nodeIndex = CommandLine.GetInt32("multinode.index");
                 var nodeRole = CommandLine.GetProperty("multinode.role");
                 var assemblyFileName = CommandLine.GetProperty("multinode.test-assembly");
                 var typeName = CommandLine.GetProperty("multinode.test-class");
-                var testName = CommandLine.GetProperty("multinode.test-method");
-                var displayName = testName;
+                var methodName = CommandLine.GetProperty("multinode.test-method");
+                var displayName = $"{typeName}.{methodName}";
 
                 var listenAddress = IPAddress.Parse(CommandLine.GetProperty("multinode.listen-address"));
                 var listenPort = CommandLine.GetInt32("multinode.listen-port");
@@ -51,11 +57,10 @@ namespace Akka.MultiNode.NodeRunner
 
                 try
                 {
-                    var system = ActorSystem.Create("NoteTestRunner-" + nodeIndex);
+                    var system = ActorSystem.Create("NodeTestRunner-" + nodeIndex);
                     var tcpClient = _logger = system.ActorOf<RunnerTcpClient>();
                     system.Tcp().Tell(new Tcp.Connect(listenEndpoint), tcpClient);
 
-                    MultiNodeEnvironment.Initialize();
 #if CORECLR
                     // In NetCore, if the assembly file hasn't been touched, 
                     // XunitFrontController would fail loading external assemblies and its dependencies.
@@ -86,33 +91,31 @@ namespace Akka.MultiNode.NodeRunner
                          */
                         var assemblyName = Path.GetFileName(assemblyFileName);
                         Console.WriteLine("Running specs for {0} [{1}] ", assemblyName, assemblyFileName);
-                        using (var discovery = new Discovery(assemblyName, typeName))
+
+                        using (var sink = new Sink(nodeIndex, nodeRole, tcpClient))
                         {
-                            using (var sink = new Sink(nodeIndex, nodeRole, tcpClient))
+                            var testCase = Discover(assemblyName, typeName, methodName, sink);
+                            Console.WriteLine($">>> Running this test: [{testCase.DisplayName}]");
+                            
+                            controller.RunTests(new []{testCase}, sink, TestFrameworkOptions.ForExecution());
+
+                            var timedOut = false;
+                            if (!sink.Finished.WaitOne(MaxProcessWaitTimeout)) //timed out
                             {
-
-                                controller.Find(true, discovery, TestFrameworkOptions.ForDiscovery());
-                                discovery.Finished.WaitOne();
-                                controller.RunTests(discovery.TestCases, sink, TestFrameworkOptions.ForExecution());
-
-                                var timedOut = false;
-                                if (!sink.Finished.WaitOne(MaxProcessWaitTimeout)) //timed out
-                                {
-                                    var line = string.Format(
-                                        "Timed out while waiting for test to complete after {0} ms",
-                                        MaxProcessWaitTimeout);
-                                    _logger.Tell(line);
-                                    Console.WriteLine(line);
-                                    timedOut = true;
-                                }
-
-                                FlushLogMessages();
-                                system.Terminate().Wait();
-
-                                var retCode = sink.Passed && !timedOut ? 0 : 1;
-                                Environment.Exit(retCode);
-                                return retCode;
+                                var line = string.Format(
+                                    "Timed out while waiting for test to complete after {0} ms",
+                                    MaxProcessWaitTimeout);
+                                _logger.Tell(line);
+                                Console.WriteLine(line);
+                                timedOut = true;
                             }
+
+                            FlushLogMessages();
+                            system.Terminate().Wait();
+
+                            var retCode = sink.Passed && !timedOut ? 0 : 1;
+                            Environment.Exit(retCode);
+                            return retCode;
                         }
                     }
                 }
@@ -188,6 +191,33 @@ namespace Akka.MultiNode.NodeRunner
             return assemblyLoadContext.LoadFromAssemblyPath(Path.Combine(Path.GetDirectoryName(assemblyPath), dllName));
         }
 #endif
+
+        private static IXunitTestCase Discover(string assemblyPath, string typeName, string methodName, IMessageSink sink)
+        {
+            MultiNodeEnvironment.Initialize();
+            
+            var assembly = new TestAssembly(new ReflectionAssemblyInfo(assemblyPath));
+            foreach (var type in assembly.Assembly.GetTypes(false))
+            {
+                if (!type.Name.Equals(typeName, StringComparison.OrdinalIgnoreCase))
+                    continue;
+                
+                var testClass = new TestClass(new TestCollection(assembly, type, type.Name), type);
+                foreach (var method in type.GetMethods(false))
+                {
+                    if (!method.Name.Equals(methodName, StringComparison.OrdinalIgnoreCase))
+                        continue;
+                    
+                    return new MultiNodeTestCase(
+                        sink,
+                        TestMethodDisplay.ClassAndMethod,
+                        TestMethodDisplayOptions.All,
+                        new TestMethod(testClass, method));
+                }
+            }
+            
+            return null;
+        }
     }
 
     class RunnerTcpClient : ReceiveActor, IWithUnboundedStash

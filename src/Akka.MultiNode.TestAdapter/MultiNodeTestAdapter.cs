@@ -42,16 +42,15 @@ namespace Akka.MultiNode.TestAdapter
         {
             foreach (var assemblyPath in sources)
             {
-                var (specs, errors) = MultiNodeTestRunner.DiscoverSpecs(assemblyPath);
-
-                foreach (var discoveryErrorMessage in errors.SelectMany(e => e.Messages))
-                {
-                    logger.SendMessage(TestMessageLevel.Error, discoveryErrorMessage);
-                }
+                var specs = MultiNodeTestRunner.Discover(assemblyPath);
 
                 foreach (var discoveredSpec in specs)
                 {
-                    discoverySink.SendTestCase(new TestCase(discoveredSpec.TestName, new Uri(Constants.ExecutorUriString), assemblyPath));
+                    var testcase = new TestCase(
+                        discoveredSpec.TestName, 
+                        new Uri(Constants.ExecutorUriString),
+                        assemblyPath);
+                    discoverySink.SendTestCase(testcase);
                 }
             }
         }
@@ -95,13 +94,11 @@ namespace Akka.MultiNode.TestAdapter
         private void RunTestsWithOptions(IEnumerable<string> sources, IFrameworkHandle frameworkHandle, MultiNodeTestRunnerOptions options)
         {
             var testResults = new ConcurrentDictionary<string, TestResult>();
-            
-            var testAssemblyPaths = sources.ToList();
+            var testAssemblyPaths = sources.Select(Path.GetFullPath).ToList();
             frameworkHandle.SendMessage(TestMessageLevel.Informational, $"Loading tests from assemblies: {string.Join(", ", testAssemblyPaths)}");
             
-            foreach (var maybeRelativeAssemblyPath in testAssemblyPaths)
+            foreach (var assemblyPath in testAssemblyPaths)
             {
-                var assemblyPath = Path.GetFullPath(maybeRelativeAssemblyPath);
                 using (var runner = CreateRunner(frameworkHandle, testResults, assemblyPath))
                 {
                     try
@@ -243,12 +240,12 @@ namespace Akka.MultiNode.TestAdapter
         
         private List<MultiNodeTest> GetTests(string assemblyPath, IEnumerator<TestCase> cases)
         {
-            var tests = MultiNodeTestRunner.DiscoverSpecs(assemblyPath);
+            var tests = MultiNodeTestRunner.Discover(assemblyPath);
             var result = new List<MultiNodeTest>();
             while (cases.MoveNext())
             {
                 var c = cases.Current;
-                result.Add(tests.Tests.First(t => t.TestName.Equals(c.FullyQualifiedName))); 
+                result.Add(tests.First(t => t.TestName.Equals(c.FullyQualifiedName))); 
             }
 
             return result;

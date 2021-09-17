@@ -11,24 +11,29 @@ namespace Akka.MultiNode.Shared
     public class MultiNodeTest
     {
         protected MultiNodeTest() { }
-        public MultiNodeTest(ITestCaseDiscoveryMessage discovery, string assemblyPath)
+        public MultiNodeTest(Discovery discovery, string assemblyPath)
         {
             _discovery = discovery;
             AssemblyPath = Path.GetFullPath(assemblyPath);
             Console.WriteLine($"!!!!!!!!!!!! {AssemblyPath}"); 
             
-            TypeName = discovery.TestClass.Class.Name;
-            MethodName = discovery.TestMethod.Method.Name;
-            SkipReason = discovery.TestCase.SkipReason;
+            TypeName = discovery.TypeInfo.FullName;
+            MethodName = discovery.MethodInfo.Name;
+            SkipReason = discovery.Attribute.Skip;
+            Timeout = discovery.Attribute.Timeout;
+            DisplayName = discovery.Attribute.DisplayName;
         }
 
-        private ITestCaseDiscoveryMessage _discovery;
+        private Discovery _discovery;
 
         public virtual string AssemblyPath { get; }
         public virtual string TypeName { get; }
         public virtual string MethodName { get; }
         public string TestName => $"{TypeName}.{MethodName}";
+        
         public virtual string SkipReason { get; set; }
+        public virtual int Timeout { get; }
+        public virtual string DisplayName { get; }
 
         protected List<NodeTest> InternalNodes;
 
@@ -40,17 +45,13 @@ namespace Akka.MultiNode.Shared
         /// <exception cref="TestConfigurationException">Invalid configuration class</exception>
         protected virtual List<NodeTest> LoadDetails()
         {
-#if CORECLR
-            var specType = _discovery.TestAssembly.Assembly.GetType(TypeName).ToRuntimeType();
-#else
-            var testAssembly = Assembly.LoadFrom(discovery.TestAssembly.Assembly.AssemblyPath);
-            var specType = testAssembly.GetType(TypeName);
-#endif
+            var specType = _discovery.Assembly.GetType(TypeName);
+            
             if (!typeof(MultiNodeSpec).IsAssignableFrom(specType))
             {
                 throw new TestBaseTypeException();
             }
-                
+            
             var roles = RoleNames(specType);
             _discovery = null;
             
