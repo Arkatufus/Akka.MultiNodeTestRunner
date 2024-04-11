@@ -13,7 +13,6 @@ open Fake.DocFxHelper
 let configuration = "Release"
 
 // Configuration values for tests
-let testNetCoreVersion = "netcoreapp3.1"
 let testNetVersion = "net6.0"
 
 // Metadata used when signing packages and DLLs
@@ -101,28 +100,6 @@ module internal ResultHandling =
         >> Option.iter (failBuildWithMessage errorLevel)
 
 Target "RunTests" (fun _ ->
-    let projects = match (isWindows) with
-                    | true -> !! "./src/**/*.Tests.*sproj"
-                    | _ -> !! "./src/**/*.Tests.*sproj" // if you need to filter specs for Linux vs. Windows, do it here
-
-    let runSingleProject project =
-        let arguments =
-            match (hasTeamCity) with
-              | true -> (sprintf "test -c Release --no-build --logger:trx --logger:\"console;verbosity=normal\" --framework %s --results-directory \"%s\" -- -parallel none -teamcity" testNetCoreVersion outputTests)
-              | false -> (sprintf "test -c Release --no-build --logger:trx --logger:\"console;verbosity=normal\" --framework %s --results-directory \"%s\" -- -parallel none" testNetCoreVersion outputTests)
-
-        let result = ExecProcess(fun info ->
-            info.FileName <- "dotnet"
-            info.WorkingDirectory <- (Directory.GetParent project).FullName
-            info.Arguments <- arguments) (TimeSpan.FromMinutes 30.0)
-
-        ResultHandling.failBuildIfXUnitReportedError TestRunnerErrorLevel.Error result
-
-    CreateDir outputTests
-    projects |> Seq.iter (runSingleProject)
-)
-
-Target "RunTestsNet" (fun _ ->
     let projects = match (isWindows) with
                     | true -> !! "./src/**/*.Tests.*sproj"
                     | _ -> !! "./src/**/*.Tests.*sproj" // if you need to filter specs for Linux vs. Windows, do it here
@@ -320,7 +297,6 @@ Target "Nuget" DoNothing
 
 // tests dependencies
 "Build" ==> "RunTests"
-"Build" ==> "RunTestsNet"
 
 // nuget dependencies
 "Clean" ==> "Build" ==> "CreateNuget"
@@ -332,7 +308,6 @@ Target "Nuget" DoNothing
 // all
 "BuildRelease" ==> "All"
 "RunTests" ==> "All"
-"RunTestsNet" ==> "All"
 "NBench" ==> "All"
 "Nuget" ==> "All"
 
