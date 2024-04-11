@@ -1,20 +1,21 @@
 <Project>
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <XUnitVersion>2.5.3</XUnitVersion>
   </PropertyGroup>
   <!-- App dependencies -->
   <ItemGroup>
-    <PackageVersion Include="Akka.Cluster.TestKit" Version="1.5.13" />
+    <PackageVersion Include="Akka.Cluster.TestKit" Version="1.5.18" />
     <PackageVersion Include="TeamCity.ServiceMessages" Version="4.1.1" />
     <PackageVersion Include="System.CodeDom" Version="8.0.0" />
     <PackageVersion Include="System.Runtime.Loader" Version="4.3.0" />
-    <PackageVersion Include="xunit.runner.utility" Version="2.6.2" />
+    <PackageVersion Include="xunit.runner.utility" Version="$(XUnitVersion)" />
   </ItemGroup>
   <!-- Test dependencies -->
   <ItemGroup>
-    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.9.0" />
     <PackageVersion Include="FluentAssertions" Version="6.12.0" />
-    <PackageVersion Include="xunit" Version="2.5.0" />
+    <PackageVersion Include="xunit" Version="$(XUnitVersion)" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="2.5.7" />
   </ItemGroup>
   <!-- SourceLink support for all Akka.NET projects -->

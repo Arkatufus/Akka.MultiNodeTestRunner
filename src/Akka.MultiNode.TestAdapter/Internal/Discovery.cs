@@ -11,10 +11,11 @@ using System.Linq;
 using System.Threading;
 using Xunit.Abstractions;
 using Xunit.Sdk;
+using LongLivedMarshalByRefObject = Xunit.LongLivedMarshalByRefObject;
 
 namespace Akka.MultiNode.TestAdapter.Internal
 {
-    internal class Discovery : IMessageSink, IDisposable
+    internal class Discovery : LongLivedMarshalByRefObject, IMessageSink, IDisposable
     {
         // There can be multiple fact attributes in a single class, but our convention
         // limits them to 1 fact attribute per test class

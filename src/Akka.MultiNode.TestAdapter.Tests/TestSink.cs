@@ -12,11 +12,12 @@ using System.Threading;
 using Xunit;
 using Xunit.Abstractions;
 using Xunit.Sdk;
+using LongLivedMarshalByRefObject = Xunit.Sdk.LongLivedMarshalByRefObject;
 using TestCaseStarting = Xunit.Sdk.TestCaseStarting;
 
 namespace Akka.MultiNode.TestAdapter.Tests
 {
-    internal class TestSink : IMessageSink, IDisposable
+    internal class TestSink : LongLivedMarshalByRefObject, IMessageSink, IDisposable
     {
         public ManualResetEvent Finished { get; }= new ManualResetEvent(false);
 
