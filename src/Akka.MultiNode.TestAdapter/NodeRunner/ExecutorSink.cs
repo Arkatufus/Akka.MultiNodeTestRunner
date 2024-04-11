@@ -12,10 +12,11 @@ using Akka.MultiNode.TestAdapter.Internal.Sinks;
 using Xunit;
 using Xunit.Abstractions;
 using IMessageSink = Xunit.Abstractions.IMessageSink;
+using LongLivedMarshalByRefObject = Xunit.Sdk.LongLivedMarshalByRefObject;
 
 namespace Akka.MultiNode.TestAdapter.NodeRunner
 {
-    internal class ExecutorSink : IMessageSink, IDisposable
+    internal class ExecutorSink : LongLivedMarshalByRefObject, IMessageSink, IDisposable
     {
         public bool Passed { get; private set; }
         public ManualResetEvent Finished { get; private set; }
