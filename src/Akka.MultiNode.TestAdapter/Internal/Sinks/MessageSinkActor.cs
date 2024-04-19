@@ -54,6 +54,7 @@ namespace Akka.MultiNode.TestAdapter.Internal.Sinks
         /// </summary>
         private void SetReceive()
         {
+            Receive<SinkCoordinator.Ready>(HandleReady);
             Receive<BeginNewSpec>(HandleNewSpec);
             Receive<EndSpec>(HandleEndSpec);
             Receive<LogMessageFragmentForNode>(HandleNodeMessageFragment);
@@ -73,6 +74,8 @@ namespace Akka.MultiNode.TestAdapter.Internal.Sinks
         /// </summary>
         protected abstract void AdditionalReceives();
 
+        private void HandleReady(SinkCoordinator.Ready ready) => Sender.Tell(ready);
+        
         protected abstract void HandleNewSpec(BeginNewSpec newSpec);
 
         protected abstract void HandleEndSpec(EndSpec endSpec);

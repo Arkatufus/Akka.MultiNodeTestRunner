@@ -25,7 +25,7 @@ namespace Akka.MultiNode.TestAdapter.Internal.Sinks
         /// 
         /// Typically called at the beginning of a test run.
         /// </summary>
-        void Open(ActorSystem context);
+        Task Open(ActorSystem context);
 
         /// <summary>
         /// Flag that determines if <see cref="Open"/> has been successfully called or not.
