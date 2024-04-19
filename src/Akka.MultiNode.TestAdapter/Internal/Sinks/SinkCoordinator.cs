@@ -22,17 +22,19 @@ namespace Akka.MultiNode.TestAdapter.Internal.Sinks
     {
         #region Message classes
 
+        public sealed class Ready
+        {
+            public static readonly Ready Instance = new();
+            private Ready() { }
+        }
+        
         /// <summary>
         /// Used to signal that we need to enable a given <see cref="MessageSink"/> instance
         /// </summary>
-        internal class EnableSink
+        internal class EnableSinks
         {
-            public EnableSink(MessageSink sink)
-            {
-                Sink = sink;
-            }
-
-            public MessageSink Sink { get; private set; }
+            public static readonly EnableSinks Instance = new();
+            private EnableSinks() { }
         }
 
         /// <summary>
@@ -80,6 +82,8 @@ namespace Akka.MultiNode.TestAdapter.Internal.Sinks
 
         #endregion
 
+        private bool _ready;
+        
         protected readonly List<MessageSink> DefaultSinks;
         protected readonly List<MessageSink> Sinks = new List<MessageSink>();
 
@@ -107,8 +111,7 @@ namespace Akka.MultiNode.TestAdapter.Internal.Sinks
 
         protected override void PreStart()
         {
-            foreach(var sink in DefaultSinks)
-                Self.Tell(new EnableSink(sink));
+            Self.Tell(EnableSinks.Instance);
         }
 
         #endregion
@@ -117,10 +120,24 @@ namespace Akka.MultiNode.TestAdapter.Internal.Sinks
 
         private void InitializeReceives()
         {
-            Receive<EnableSink>(sink =>
+            ReceiveAsync<EnableSinks>(async _ =>
             {
-                Sinks.Add(sink.Sink);
-                sink.Sink.Open(Context.System);
+                foreach (var sink in DefaultSinks)
+                {
+                    Sinks.Add(sink);    
+                    await sink.Open(Context.System);
+                }
+
+                _ready = true;
+            });
+
+            Receive<Ready>(r =>
+            {
+                if (!_ready)
+                    // If we're not yet ready, requeue the message
+                    Self.Tell(r, Sender);
+                else
+                    Sender.Tell(r);
             });
 
             Receive<SinkClosed>(closed =>

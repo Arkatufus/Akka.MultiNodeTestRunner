@@ -143,12 +143,14 @@ akka.io.tcp {{
             SinkCoordinator = TestRunSystem.ActorOf(Props.Create(()
                 => new SinkCoordinator(sinks)), "sinkCoordinator");
 
+            await SinkCoordinator.Ask<SinkCoordinator.Ready>(Sinks.SinkCoordinator.Ready.Instance);
+            
             var tcpLogger = TestRunSystem.ActorOf(Props.Create(() => new TcpLoggingServer(SinkCoordinator)), "TcpLogger");
             var listenEndpoint = new IPEndPoint(IPAddress.Parse(Options.ListenAddress), Options.ListenPort);
             TestRunSystem.Tcp().Tell(new Tcp.Bind(tcpLogger, listenEndpoint), sender: tcpLogger);
 
-            PublishRunnerMessage($"Starting test {TestCase.DisplayName}");
             StartNewSpec();
+            PublishRunnerMessage($"Starting test {TestCase.DisplayName}");
 
             var timelineCollector = TestRunSystem.ActorOf(Props.Create(() => new TimelineLogCollectorActor(Options.AppendLogOutput)));
             

@@ -33,7 +33,7 @@ namespace Akka.MultiNode.TestAdapter.Internal.Sinks
 
         #region Flow Control
 
-        public void Open(ActorSystem context)
+        public async Task Open(ActorSystem context)
         {
             //Do nothing
             if(IsClosed || IsOpen) return;
@@ -42,6 +42,7 @@ namespace Akka.MultiNode.TestAdapter.Internal.Sinks
 
             //Start the TestCoordinatorActor
             MessageSinkActorRef = context.ActorOf(MessageSinkActorProps);
+            await MessageSinkActorRef.Ask<SinkCoordinator.Ready>(SinkCoordinator.Ready.Instance);
         }
 
         public bool IsOpen { get; private set; }
@@ -55,7 +56,7 @@ namespace Akka.MultiNode.TestAdapter.Internal.Sinks
         public async Task<bool> Close(ActorSystem context)
         {
             //Test run has already been closed or hasn't started
-            if (!IsOpen || IsClosed) return await Task.FromResult(false);
+            if (!IsOpen || IsClosed) return false;
 
             IsOpen = false;
             IsClosed = true;
