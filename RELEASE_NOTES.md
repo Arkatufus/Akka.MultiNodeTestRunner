@@ -1,3 +1,8 @@
+#### 1.5.19 April 20 2024
+
+* [Updated Akka.NET to 1.5.19](https://github.com/akkadotnet/akka.net/releases/tag/1.5.19)
+* [Fix TRX exporter NullReferenceException bug](https://github.com/akkadotnet/Akka.MultiNodeTestRunner/pull/234)
+
 #### 1.5.18 April 12 2024
 
 * [Updated Akka.NET to 1.5.18](https://github.com/akkadotnet/akka.net/releases/tag/1.5.18)
